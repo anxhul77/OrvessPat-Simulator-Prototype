@@ -91,19 +91,98 @@ def tracking():
 
 
 def live(sim):
-    root=QWidget(); lay=QVBoxLayout(root); lay.setContentsMargins(24,20,24,24); lay.setSpacing(12)
-    top=QHBoxLayout(); title=QLabel("Live Tracking"); title.setProperty("class","page-title"); top.addWidget(title); top.addStretch(); top.addWidget(StatusPill("TARGET LOCKED")); lay.addLayout(top)
-    body=QHBoxLayout(); left=Section("SCENARIO CONTROLS"); left.setFixedWidth(205)
-    for i,x in enumerate(["Scenario\nFSOC Demo — Moving Beacon","Camera\n640 × 480 / 60 FPS","Target\n10 px / Figure-8","Detection\nHybrid CV + AI","Estimator\nAdaptive Kalman","Prediction\n5 seconds","Search\nAdaptive EAL"]):
-        q=QLabel(x); q.setProperty("class","telemetry-item"); left.body.addWidget(q,i,0,1,2)
-    body.addWidget(left); center=Section("CAMERA VIEW  /  MONOCHROME SENSOR"); center.body.addWidget(CameraView(),0,0,1,2); body.addWidget(center,1)
-    right=QWidget(); rl=QVBoxLayout(right); rl.setContentsMargins(0,0,0,0); rl.setSpacing(8); rl.addWidget(QLabel("LIVE METRICS"))
-    metrics=[]
-    for a,b,u in [("FPS","60.0",""),("Centroid Error","2.31","px"),("RMSE","3.14","px"),("Lock Retention","98.4","%"),("NIS","2.17",""),("Latency","18.2","ms"),("Acquisition","0.83","s"),("Reacquisition","0.42","s")]: m=Metric(a,b,u); metrics.append(m); rl.addWidget(m)
-    body.addWidget(right); lay.addLayout(body,3)
-    charts=QHBoxLayout(); plots=[Plot("POSITION / U-V","#42d6c5"),Plot("RADIAL ERROR","#ef8c63"),Plot("NIS vs TIME","#b58cff")]
-    for p in plots: charts.addWidget(p)
-    lay.addLayout(charts,1); root.metrics=metrics; root.camera=center.findChild(CameraView); root.plots=plots; return root
+    root = QWidget()
+    lay = QVBoxLayout(root)
+    lay.setContentsMargins(16, 12, 16, 16)
+    lay.setSpacing(10)
+
+    top = QHBoxLayout()
+    title = QLabel("Live Optical Tracking Viewport")
+    title.setProperty("class", "page-title")
+    title.setStyleSheet("font-size:18px; font-weight:700; color:#ffffff;")
+    top.addWidget(title)
+    top.addStretch()
+    top.addWidget(StatusPill("TARGET LOCKED"))
+    lay.addLayout(top)
+
+    body = QHBoxLayout()
+    body.setSpacing(10)
+
+    # Left: Quick Control Panel
+    left = Section("SCENARIO CONTROLS")
+    left.setFixedWidth(210)
+    for i, x in enumerate([
+        "Scenario\nFSOC Demo — Moving Beacon",
+        "Camera\n640 × 480 / 60 FPS",
+        "Target\n10 px / Figure-8",
+        "Detection\nHybrid CV + AI",
+        "Estimator\nAdaptive Kalman",
+        "Prediction\n5 seconds",
+        "Search\nAdaptive EAL",
+    ]):
+        q = QLabel(x)
+        q.setProperty("class", "telemetry-item")
+        left.body.addWidget(q, i, 0, 1, 2)
+    body.addWidget(left)
+
+    # Center: Optical Viewport
+    center = Section("CAMERA VIEW  /  MONOCHROME SENSOR CANVAS")
+    center.body.addWidget(CameraView(), 0, 0, 1, 2)
+    body.addWidget(center, 1)
+
+    # Right: Scrollable Live Metrics Stack
+    right_box = Section("LIVE TELEMETRY METRICS")
+    right_box.setFixedWidth(230)
+    
+    scroll_area = QScrollArea()
+    scroll_area.setWidgetResizable(True)
+    scroll_area.setFrameShape(QFrame.NoFrame)
+    scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    
+    scroll_content = QWidget()
+    rl = QVBoxLayout(scroll_content)
+    rl.setContentsMargins(4, 4, 4, 4)
+    rl.setSpacing(8)
+
+    metrics = []
+    metric_items = [
+        ("FPS", "60.0", ""),
+        ("Centroid Error", "2.31", "px"),
+        ("RMSE", "3.14", "px"),
+        ("Lock Retention", "98.4", "%"),
+        ("NIS", "2.17", ""),
+        ("Latency", "18.2", "ms"),
+        ("Acquisition", "0.83", "s"),
+        ("Reacquisition", "0.42", "s"),
+    ]
+    for a, b, u in metric_items:
+        m = Metric(a, b, u)
+        metrics.append(m)
+        rl.addWidget(m)
+    rl.addStretch(1)
+
+    scroll_area.setWidget(scroll_content)
+    right_box.body.addWidget(scroll_area, 0, 0, 1, 2)
+    body.addWidget(right_box)
+
+    lay.addLayout(body, 3)
+
+    charts = QHBoxLayout()
+    charts.setSpacing(10)
+    plots = [
+        Plot("POSITION / U-V", "#42d6c5"),
+        Plot("RADIAL ERROR", "#ef8c63"),
+        Plot("NIS vs TIME", "#b58cff"),
+    ]
+    for p in plots:
+        charts.addWidget(p)
+
+    lay.addLayout(charts, 1)
+
+    root.metrics = metrics
+    root.camera = center.findChild(CameraView)
+    root.plots = plots
+    return root
 
 
 def analysis():

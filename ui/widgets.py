@@ -57,11 +57,24 @@ def check(label, checked=False):
 
 class Metric(QFrame):
     def __init__(self, title, value, unit="", tone="normal"):
-        super().__init__(); self.setProperty("class", "metric")
-        lay = QVBoxLayout(self); lay.setContentsMargins(12, 9, 12, 9); lay.setSpacing(2)
-        t = QLabel(title.upper()); t.setProperty("class", "metric-title")
-        self.value_label = QLabel(str(value) + (f" {unit}" if unit else "")); self.value_label.setProperty("class", f"metric-value {tone}")
-        lay.addWidget(t); lay.addWidget(self.value_label)
+        super().__init__()
+        self.setProperty("class", "metric")
+        self.setMinimumHeight(54)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(10, 6, 10, 6)
+        lay.setSpacing(2)
+        
+        t = QLabel(title.upper())
+        t.setProperty("class", "metric-title")
+        t.setStyleSheet("font-size:10px; color:#858585; font-weight:700; letter-spacing:0.8px;")
+        
+        self.value_label = QLabel(str(value) + (f" {unit}" if unit else ""))
+        self.value_label.setProperty("class", f"metric-value {tone}")
+        self.value_label.setStyleSheet("font-size:15px; color:#ffffff; font-weight:700;")
+        
+        lay.addWidget(t)
+        lay.addWidget(self.value_label)
+
     def set_value(self, value, unit=""):
         self.value_label.setText(str(value) + (f" {unit}" if unit else ""))
 

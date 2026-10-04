@@ -1,14 +1,17 @@
-"""Quadoa CAD-style Professional Simulation Workstation UI.
+"""OrvessPat Sim — Professional Optical Camera Tracking Workstation UI.
 
-Layout Architecture (Quadoa Optical CAD / AutoCAD / SolidWorks style):
-- Top Desktop Menu Bar
-- Top CAD Ribbon Toolbar with tabbed functional toolgroups (Home, Optics, Target, Pipeline, Analysis, View)
-- Left CAD Feature Tree (Project Scene Explorer)
-- Central CAD Workspace Viewport Canvas (Hero Optical Sensor view with reticles, grid, & overlays)
-- Right CAD Parameter Inspector (PropertyStore grid editor)
-- Bottom Simulation Timeline Dock & CAD Status Bar
-- Visual Palette: VS Code Black Theme colors (#1e1e1e, #252526, #3c3c3c, #007acc blue accent)
-- Completely free of VS Code editor layout clutter, Research Lab, and Experiments.
+Refactored Architecture & Product Identity:
+- System: AI-Based Virtual Camera Tracking System for Coarse Alignment of Mobile FSOC Terminals
+- Product Pitch Distinction: Baseline Requirements (Problem Statement) vs Research Extensions
+- 90-Second Pitch Demonstration Toolbar (Direct 1-click sequence for 0-90s presentation)
+- Interactive Target Loss -> Searching -> Reacquiring -> Locked State Machine Demo
+- Restoration of Research Lab (EXP 00-23) & Monte Carlo Statistical Validation
+- Top CAD Ribbon Toolbar + 90s Demo Ribbon
+- Left Project / Scene Explorer Tree
+- Central CAD Viewport Canvas & Dedicated Prediction / Search Workspaces
+- Right CAD Parameter Inspector (PropertyStore grid)
+- Bottom Simulation Timeline Dock & Telemetry Status Bar
+- Visual Palette: VS Code Black Theme colors (#1e1e1e, #252526, #3c3c3c, #007acc)
 """
 
 import math
@@ -43,7 +46,15 @@ from PySide6.QtWidgets import (
 )
 
 from mock.simulation import MockSimulation
-from pages.config_pages import camera, environment, live, scenario, target
+from pages.config_pages import (
+    camera,
+    environment,
+    live,
+    monte_carlo,
+    research,
+    scenario,
+    target,
+)
 from pages.workspaces import (
     AnalysisWorkspace,
     BenchmarkWorkspace,
@@ -54,7 +65,7 @@ from ui.properties import Inspector, PropertyStore
 from ui.widgets import Plot
 
 STYLE = """
-/* QUADOA OPTICAL CAD WORKSTATION — VS CODE DARK COLOR PALETTE */
+/* ORVESSPAT SIM WORKSTATION — VS CODE DARK COLOR PALETTE */
 QWidget {
     background: #1e1e1e;
     color: #cccccc;
@@ -108,13 +119,13 @@ QMenu::separator {
     margin: 4px 0;
 }
 
-/* CAD Ribbon Header Container */
+/* Ribbon Header Container */
 QFrame#cad-ribbon-frame {
     background: #252526;
     border-bottom: 1px solid #3c3c3c;
 }
 
-/* CAD Ribbon Tabs */
+/* Ribbon Tabs */
 QTabBar#ribbon-tabs {
     background: #181818;
     border-bottom: 1px solid #3c3c3c;
@@ -123,7 +134,7 @@ QTabBar#ribbon-tabs {
 QTabBar#ribbon-tabs::tab {
     background: #181818;
     color: #888888;
-    padding: 6px 16px;
+    padding: 6px 14px;
     border: 1px solid transparent;
     border-bottom: none;
     font-weight: 700;
@@ -144,7 +155,7 @@ QTabBar#ribbon-tabs::tab:selected {
     border-bottom: 1px solid #252526;
 }
 
-/* CAD Ribbon Action Groups */
+/* Ribbon Action Groups */
 QGroupBox.cad-ribbon-group {
     background: #202021;
     border: 1px solid #333333;
@@ -163,7 +174,7 @@ QGroupBox.cad-ribbon-group::title {
     letter-spacing: 0.5px;
 }
 
-/* CAD Ribbon Buttons */
+/* Ribbon Buttons */
 QToolButton.cad-ribbon-btn {
     background: #2d2d2d;
     color: #cccccc;
@@ -191,23 +202,79 @@ QToolButton.cad-ribbon-btn-primary:hover {
     background: #1177bb;
 }
 
-/* CAD Panels */
+/* 90s Pitch Demo Ribbon Bar */
+QFrame#demo-sequence-bar {
+    background: #1a232a;
+    border-bottom: 1px solid #007acc;
+    padding: 3px 10px;
+}
+
+QPushButton.demo-btn {
+    background: #1b384d;
+    color: #569cd6;
+    border: 1px solid #007acc;
+    border-radius: 2px;
+    padding: 3px 8px;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+QPushButton.demo-btn:hover {
+    background: #0e639c;
+    color: #ffffff;
+}
+
+QPushButton.demo-btn-warn {
+    background: #3e2a0e;
+    color: #dcdcaa;
+    border: 1px solid #ce9178;
+    border-radius: 2px;
+    padding: 3px 8px;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+QPushButton.demo-btn-warn:hover {
+    background: #684818;
+    color: #ffffff;
+}
+
+/* Product Pitch Distinction Banner */
+QFrame#distinction-banner {
+    background: #181818;
+    border-bottom: 1px solid #3c3c3c;
+    padding: 4px 12px;
+}
+
+QLabel.distinction-baseline {
+    color: #4ec9b0;
+    font-size: 10px;
+    font-weight: 600;
+}
+
+QLabel.distinction-research {
+    color: #b58cff;
+    font-size: 10px;
+    font-weight: 600;
+}
+
+/* Panels & Dock Containers */
 QFrame.cad-panel {
     background: #252526;
     border: 1px solid #3c3c3c;
 }
 
 QLabel.cad-panel-header {
-    background: #1e1e1e;
+    background: #181818;
     color: #569cd6;
     font-weight: 700;
     font-size: 10px;
     letter-spacing: 1px;
-    padding: 6px 10px;
+    padding: 7px 10px;
     border-bottom: 1px solid #3c3c3c;
 }
 
-/* CAD Feature Tree */
+/* Project / Scene Explorer Tree */
 QTreeWidget {
     background: #252526;
     color: #cccccc;
@@ -227,6 +294,30 @@ QTreeWidget::item:hover {
 QTreeWidget::item:selected {
     background: #04395e;
     color: #ffffff;
+}
+
+/* Telemetry Metrics Card Layout */
+QFrame.metric {
+    background: #252526;
+    border: 1px solid #3c3c3c;
+    border-left: 3px solid #007acc;
+    border-radius: 2px;
+    min-height: 52px;
+    padding: 6px 10px;
+}
+
+QLabel.metric-title {
+    color: #858585;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    margin-bottom: 2px;
+}
+
+QLabel.metric-value {
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 700;
 }
 
 /* Status Bar */
@@ -314,24 +405,6 @@ QLabel.status-pill {
     border-radius: 2px;
 }
 
-QLabel.metric-title {
-    color: #858585;
-    font-size: 9px;
-    letter-spacing: 1px;
-}
-
-QLabel.metric-value {
-    color: #ffffff;
-    font-size: 18px;
-    font-weight: 600;
-}
-
-QFrame.metric {
-    background: #252526;
-    border: 1px solid #3c3c3c;
-    border-left: 3px solid #007acc;
-}
-
 QLabel.telemetry-item {
     color: #cccccc;
     background: #1e1e1e;
@@ -345,7 +418,7 @@ QLabel.telemetry-item {
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Quadoa Optical CAD — FSOC Virtual Camera Workstation")
+        self.setWindowTitle("OrvessPat Sim — AI Virtual Camera Tracking Workstation for FSOC Coarse Alignment")
         self.resize(1600, 960)
         self.setStyleSheet(STYLE)
 
@@ -368,37 +441,43 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
-        # 1. Quadoa CAD Top Ribbon Toolbar (Header)
-        root_layout.addWidget(self._build_cad_ribbon())
+        # 1. Top Ribbon Toolbar
+        root_layout.addWidget(self._build_ribbon())
 
-        # 2. Main CAD Splitter (Left Feature Tree | Central Canvas Viewport | Right Parameter Inspector)
+        # 2. 90-Second Pitch Demonstration Toolbar
+        root_layout.addWidget(self._build_demo_sequence_bar())
+
+        # 3. Product Pitch Distinction Banner (Baseline Requirements vs Research Extensions)
+        root_layout.addWidget(self._build_distinction_banner())
+
+        # 4. Main Splitter (Left Scene Explorer | Central Canvas Viewport | Right Parameter Inspector)
         self.central_splitter = QSplitter(Qt.Horizontal)
         self.central_splitter.setChildrenCollapsible(False)
 
-        # 2a. Left Panel: CAD Feature Tree Explorer
-        self.scene_explorer_panel = self._build_feature_explorer()
+        # 4a. Left Panel: Project / Scene Explorer Tree
+        self.scene_explorer_panel = self._build_scene_explorer()
         self.central_splitter.addWidget(self.scene_explorer_panel)
 
-        # 2b. Center: Stacked CAD Workspaces
+        # 4b. Center: Stacked Workspaces
         self.workspace_stack = QStackedWidget()
         self._build_workspaces()
         self.central_splitter.addWidget(self.workspace_stack)
 
-        # 2c. Right Panel: CAD Property Inspector
+        # 4c. Right Panel: Parameter Inspector
         self.inspector_panel = self._build_inspector_panel()
         self.central_splitter.addWidget(self.inspector_panel)
 
-        # Set splitter layout bounds (Feature Tree ~220px, Canvas ~1100px, Inspector ~280px)
-        self.central_splitter.setSizes([220, 1100, 280])
+        # Set splitter layout bounds (Scene Explorer ~230px, Canvas ~1090px, Inspector ~280px)
+        self.central_splitter.setSizes([230, 1090, 280])
         self.central_splitter.setStretchFactor(0, 0)
         self.central_splitter.setStretchFactor(1, 1)
         self.central_splitter.setStretchFactor(2, 0)
         root_layout.addWidget(self.central_splitter, 1)
 
-        # 3. Bottom CAD Timeline Dock
+        # 5. Bottom Timeline Dock
         root_layout.addWidget(self._build_timeline_panel())
 
-        # 4. Bottom CAD Status Bar
+        # 6. Bottom Status Bar
         self.setStatusBar(self._build_statusbar())
 
         # History buffers for live telemetry plots
@@ -419,7 +498,7 @@ class MainWindow(QMainWindow):
         file_menu.addAction("Save Scenario", lambda: self._toast("Scenario saved"))
         file_menu.addAction("Save As...", lambda: self._toast("Save As dialog"))
         file_menu.addSeparator()
-        file_menu.addAction("Export CAD Config...", lambda: self._toast("CAD Configuration exported"))
+        file_menu.addAction("Export Config...", lambda: self._toast("Configuration exported"))
         file_menu.addSeparator()
         file_menu.addAction("Exit", self.close)
 
@@ -437,12 +516,14 @@ class MainWindow(QMainWindow):
         view_menu.addAction("Target Geometry", lambda: self._switch_workspace(3))
         view_menu.addAction("Signal Pipeline", lambda: self._switch_workspace(5))
         view_menu.addAction("Performance Analysis", lambda: self._switch_workspace(6))
-        view_menu.addAction("Debug Console", lambda: self._switch_workspace(8))
+        view_menu.addAction("Research Lab", lambda: self._switch_workspace(7))
+        view_menu.addAction("Monte Carlo Validation", lambda: self._switch_workspace(8))
+        view_menu.addAction("Debug Console", lambda: self._switch_workspace(10))
         view_menu.addSeparator()
-        view_menu.addAction("Toggle Feature Explorer", lambda: self.scene_explorer_panel.setVisible(not self.scene_explorer_panel.isVisible()))
-        view_menu.addAction("Toggle Property Inspector", lambda: self.inspector_panel.setVisible(not self.inspector_panel.isVisible()))
+        view_menu.addAction("Toggle Scene Explorer", lambda: self.scene_explorer_panel.setVisible(not self.scene_explorer_panel.isVisible()))
+        view_menu.addAction("Toggle Inspector", lambda: self.inspector_panel.setVisible(not self.inspector_panel.isVisible()))
         view_menu.addAction("Toggle Timeline Dock", lambda: self.timeline_panel.setVisible(not self.timeline_panel.isVisible()))
-        view_menu.addAction("Reset CAD Layout", self._reset_layout)
+        view_menu.addAction("Reset Layout", self._reset_layout)
 
         # Simulation
         sim_menu = menubar.addMenu("Simulation")
@@ -451,6 +532,7 @@ class MainWindow(QMainWindow):
         sim_menu.addAction("Stop ■", self.stop_simulation)
         sim_menu.addAction("Reset ↻", self.reset_simulation)
         sim_menu.addSeparator()
+        sim_menu.addAction("Trigger Target Loss Demo", self._trigger_loss_demo)
         sim_menu.addAction("Step Frame", lambda: self.tick())
 
         # Optics
@@ -471,16 +553,21 @@ class MainWindow(QMainWindow):
         pipeline_menu.addAction("Kalman Filter", lambda: self.inspector.select("Kalman Filter"))
         pipeline_menu.addAction("Adaptive Search", lambda: self.inspector.select("Adaptive Search"))
 
+        # Research
+        research_menu = menubar.addMenu("Research")
+        research_menu.addAction("Research Lab Experiments", lambda: self._switch_workspace(7))
+        research_menu.addAction("Monte Carlo Validation", lambda: self._switch_workspace(8))
+
         # Window
         window_menu = menubar.addMenu("Window")
-        window_menu.addAction("Show All CAD Panels", lambda: [p.show() for p in (self.scene_explorer_panel, self.inspector_panel, self.timeline_panel)])
+        window_menu.addAction("Show All Panels", lambda: [p.show() for p in (self.scene_explorer_panel, self.inspector_panel, self.timeline_panel)])
 
         # Help
         help_menu = menubar.addMenu("Help")
-        help_menu.addAction("Quadoa CAD Documentation", lambda: self._toast("Quadoa Optical CAD Workstation v1.0"))
-        help_menu.addAction("About Quadoa Workstation", lambda: QMessageBox.about(self, "About Quadoa CAD", "Quadoa Optical CAD Simulation Workstation\nFSOC Virtual Camera Tracking Engine\n\nVersion 1.0"))
+        help_menu.addAction("OrvessPat Sim Documentation", lambda: self._toast("OrvessPat Sim Workstation v1.0"))
+        help_menu.addAction("About OrvessPat Sim", lambda: QMessageBox.about(self, "About OrvessPat Sim", "OrvessPat Sim — AI Virtual Camera Tracking System for FSOC Coarse Alignment\nProfessional Workstation UI\n\nVersion 1.0"))
 
-    def _build_cad_ribbon(self) -> QWidget:
+    def _build_ribbon(self) -> QWidget:
         container = QFrame()
         container.setObjectName("cad-ribbon-frame")
         layout = QVBoxLayout(container)
@@ -491,12 +578,13 @@ class MainWindow(QMainWindow):
         self.ribbon_tabs = QTabBar()
         self.ribbon_tabs.setObjectName("ribbon-tabs")
         tabs = [
-            "HOME / LIVE",
-            "OPTICAL SYSTEM",
-            "TARGET & TRAJECTORY",
+            "HOME / LIVE CANVAS",
+            "OPTICAL SENSOR",
+            "BEACON & TARGET",
             "TRACKING PIPELINE",
             "PERFORMANCE ANALYSIS",
-            "BENCHMARK & LOGS",
+            "RESEARCH LAB & MONTE CARLO",
+            "DIAGNOSTICS & LOGS",
         ]
         for t in tabs:
             self.ribbon_tabs.addTab(t)
@@ -509,27 +597,19 @@ class MainWindow(QMainWindow):
         self.ribbon_stack.setFixedHeight(54)
 
         # Panel 0: Home / Live Controls
-        p0 = QWidget()
-        l0 = QHBoxLayout(p0)
-        l0.setContentsMargins(8, 4, 8, 4)
-        l0.setSpacing(8)
-
-        # Group 1: Scenario
+        p0 = QWidget(); l0 = QHBoxLayout(p0); l0.setContentsMargins(8, 4, 8, 4); l0.setSpacing(8)
         g_scen = QGroupBox("SCENARIO")
         g_scen.setProperty("class", "cad-ribbon-group")
-        l_scen = QHBoxLayout(g_scen)
-        l_scen.setContentsMargins(4, 2, 4, 2)
+        l_scen = QHBoxLayout(g_scen); l_scen.setContentsMargins(4, 2, 4, 2)
         b_new = QToolButton(); b_new.setText("NEW"); b_new.setProperty("class", "cad-ribbon-btn"); b_new.clicked.connect(lambda: self._toast("New Scenario"))
         b_open = QToolButton(); b_open.setText("OPEN"); b_open.setProperty("class", "cad-ribbon-btn"); b_open.clicked.connect(lambda: self._toast("Open Scenario"))
         b_save = QToolButton(); b_save.setText("SAVE"); b_save.setProperty("class", "cad-ribbon-btn"); b_save.clicked.connect(lambda: self._toast("Save Scenario"))
         l_scen.addWidget(b_new); l_scen.addWidget(b_open); l_scen.addWidget(b_save)
         l0.addWidget(g_scen)
 
-        # Group 2: Simulation Execution
         g_sim = QGroupBox("SIMULATION EXECUTION")
         g_sim.setProperty("class", "cad-ribbon-group")
-        l_sim = QHBoxLayout(g_sim)
-        l_sim.setContentsMargins(4, 2, 4, 2)
+        l_sim = QHBoxLayout(g_sim); l_sim.setContentsMargins(4, 2, 4, 2)
         b_start = QToolButton(); b_start.setText("▶ START"); b_start.setProperty("class", "cad-ribbon-btn-primary"); b_start.clicked.connect(self.start_simulation)
         b_pause = QToolButton(); b_pause.setText("⏸ PAUSE"); b_pause.setProperty("class", "cad-ribbon-btn"); b_pause.clicked.connect(lambda: self.timer.stop())
         b_stop = QToolButton(); b_stop.setText("■ STOP"); b_stop.setProperty("class", "cad-ribbon-btn"); b_stop.clicked.connect(self.stop_simulation)
@@ -538,18 +618,14 @@ class MainWindow(QMainWindow):
         l_sim.addWidget(b_start); l_sim.addWidget(b_pause); l_sim.addWidget(b_stop); l_sim.addWidget(b_reset); l_sim.addWidget(b_step)
         l0.addWidget(g_sim)
 
-        # Group 3: Viewport Controls
         g_view = QGroupBox("CANVAS VIEW")
         g_view.setProperty("class", "cad-ribbon-group")
-        l_view = QHBoxLayout(g_view)
-        l_view.setContentsMargins(4, 2, 4, 2)
+        l_view = QHBoxLayout(g_view); l_view.setContentsMargins(4, 2, 4, 2)
         b_grid = QToolButton(); b_grid.setText("RETICLE GRID"); b_grid.setProperty("class", "cad-ribbon-btn"); b_grid.clicked.connect(lambda: self.pages["Live Tracking"].camera.toggle_grid())
         b_fit = QToolButton(); b_fit.setText("FIT CANVAS"); b_fit.setProperty("class", "cad-ribbon-btn"); b_fit.clicked.connect(lambda: self._switch_workspace(0))
         l_view.addWidget(b_grid); l_view.addWidget(b_fit)
         l0.addWidget(g_view)
-
-        l0.addStretch()
-        self.ribbon_stack.addWidget(p0)
+        l0.addStretch(); self.ribbon_stack.addWidget(p0)
 
         # Panel 1: Optical System
         p1 = QWidget(); l1 = QHBoxLayout(p1); l1.setContentsMargins(8, 4, 8, 4); l1.setSpacing(8)
@@ -557,11 +633,10 @@ class MainWindow(QMainWindow):
         g_opt.setProperty("class", "cad-ribbon-group")
         l_opt = QHBoxLayout(g_opt); l_opt.setContentsMargins(4, 2, 4, 2)
         b_cam = QToolButton(); b_cam.setText("CAMERA SENSOR"); b_cam.setProperty("class", "cad-ribbon-btn"); b_cam.clicked.connect(lambda: self.inspector.select("Camera"))
-        b_optics = QToolButton(); b_optics.setText("OPTICS Intrinsics"); b_optics.setProperty("class", "cad-ribbon-btn"); b_optics.clicked.connect(lambda: self.inspector.select("Optics"))
+        b_optics = QToolButton(); b_optics.setText("OPTICS INTRINSICS"); b_optics.setProperty("class", "cad-ribbon-btn"); b_optics.clicked.connect(lambda: self.inspector.select("Optics"))
         b_psf = QToolButton(); b_psf.setText("PSF MODEL"); b_psf.setProperty("class", "cad-ribbon-btn"); b_psf.clicked.connect(lambda: self.inspector.select("PSF"))
         l_opt.addWidget(b_cam); l_opt.addWidget(b_optics); l_opt.addWidget(b_psf)
-        l1.addWidget(g_opt); l1.addStretch()
-        self.ribbon_stack.addWidget(p1)
+        l1.addWidget(g_opt); l1.addStretch(); self.ribbon_stack.addWidget(p1)
 
         # Panel 2: Target & Trajectory
         p2 = QWidget(); l2 = QHBoxLayout(p2); l2.setContentsMargins(8, 4, 8, 4); l2.setSpacing(8)
@@ -571,8 +646,7 @@ class MainWindow(QMainWindow):
         b_beacon = QToolButton(); b_beacon.setText("BEACON SIGNATURE"); b_beacon.setProperty("class", "cad-ribbon-btn"); b_beacon.clicked.connect(lambda: self.inspector.select("Beacon_01"))
         b_motion = QToolButton(); b_motion.setText("MOTION MODEL"); b_motion.setProperty("class", "cad-ribbon-btn"); b_motion.clicked.connect(lambda: self.inspector.select("Motion"))
         l_tgt.addWidget(b_beacon); l_tgt.addWidget(b_motion)
-        l2.addWidget(g_tgt); l2.addStretch()
-        self.ribbon_stack.addWidget(p2)
+        l2.addWidget(g_tgt); l2.addStretch(); self.ribbon_stack.addWidget(p2)
 
         # Panel 3: Tracking Pipeline
         p3 = QWidget(); l3 = QHBoxLayout(p3); l3.setContentsMargins(8, 4, 8, 4); l3.setSpacing(8)
@@ -584,8 +658,7 @@ class MainWindow(QMainWindow):
         b_kf = QToolButton(); b_kf.setText("KALMAN ESTIMATOR"); b_kf.setProperty("class", "cad-ribbon-btn"); b_kf.clicked.connect(lambda: self.inspector.select("Kalman Filter"))
         b_search = QToolButton(); b_search.setText("ADAPTIVE SEARCH"); b_search.setProperty("class", "cad-ribbon-btn"); b_search.clicked.connect(lambda: self.inspector.select("Adaptive Search"))
         l_pipe.addWidget(b_det); l_pipe.addWidget(b_loc); l_pipe.addWidget(b_kf); l_pipe.addWidget(b_search)
-        l3.addWidget(g_pipe); l3.addStretch()
-        self.ribbon_stack.addWidget(p3)
+        l3.addWidget(g_pipe); l3.addStretch(); self.ribbon_stack.addWidget(p3)
 
         # Panel 4: Analysis
         p4 = QWidget(); l4 = QHBoxLayout(p4); l4.setContentsMargins(8, 4, 8, 4); l4.setSpacing(8)
@@ -594,50 +667,117 @@ class MainWindow(QMainWindow):
         l_ana = QHBoxLayout(g_ana); l_ana.setContentsMargins(4, 2, 4, 2)
         b_dash = QToolButton(); b_dash.setText("PERFORMANCE DASHBOARD"); b_dash.setProperty("class", "cad-ribbon-btn"); b_dash.clicked.connect(lambda: self._switch_workspace(6))
         l_ana.addWidget(b_dash)
-        l4.addWidget(g_ana); l4.addStretch()
-        self.ribbon_stack.addWidget(p4)
+        l4.addWidget(g_ana); l4.addStretch(); self.ribbon_stack.addWidget(p4)
 
-        # Panel 5: Benchmark & Logs
+        # Panel 5: Research Lab & Monte Carlo
         p5 = QWidget(); l5 = QHBoxLayout(p5); l5.setContentsMargins(8, 4, 8, 4); l5.setSpacing(8)
+        g_res = QGroupBox("RESEARCH EXPERIMENTS")
+        g_res.setProperty("class", "cad-ribbon-group")
+        l_res = QHBoxLayout(g_res); l_res.setContentsMargins(4, 2, 4, 2)
+        b_lab = QToolButton(); b_lab.setText("RESEARCH LAB (EXP 00-23)"); b_lab.setProperty("class", "cad-ribbon-btn"); b_lab.clicked.connect(lambda: self._switch_workspace(7))
+        b_mc = QToolButton(); b_mc.setText("MONTE CARLO VALIDATION"); b_mc.setProperty("class", "cad-ribbon-btn"); b_mc.clicked.connect(lambda: self._switch_workspace(8))
+        l_res.addWidget(b_lab); l_res.addWidget(b_mc)
+        l5.addWidget(g_res); l5.addStretch(); self.ribbon_stack.addWidget(p5)
+
+        # Panel 6: Diagnostics & Logs
+        p6 = QWidget(); l6 = QHBoxLayout(p6); l6.setContentsMargins(8, 4, 8, 4); l6.setSpacing(8)
         g_bm = QGroupBox("DIAGNOSTICS")
         g_bm.setProperty("class", "cad-ribbon-group")
         l_bm = QHBoxLayout(g_bm); l_bm.setContentsMargins(4, 2, 4, 2)
-        b_vid = QToolButton(); b_vid.setText("VIDEO REPLAY"); b_vid.setProperty("class", "cad-ribbon-btn"); b_vid.clicked.connect(lambda: self._switch_workspace(7))
-        b_log = QToolButton(); b_log.setText("DEBUG CONSOLE"); b_log.setProperty("class", "cad-ribbon-btn"); b_log.clicked.connect(lambda: self._switch_workspace(8))
+        b_vid = QToolButton(); b_vid.setText("VIDEO REPLAY"); b_vid.setProperty("class", "cad-ribbon-btn"); b_vid.clicked.connect(lambda: self._switch_workspace(9))
+        b_log = QToolButton(); b_log.setText("DEBUG CONSOLE"); b_log.setProperty("class", "cad-ribbon-btn"); b_log.clicked.connect(lambda: self._switch_workspace(10))
         l_bm.addWidget(b_vid); l_bm.addWidget(b_log)
-        l5.addWidget(g_bm); l5.addStretch()
-        self.ribbon_stack.addWidget(p5)
+        l6.addWidget(g_bm); l6.addStretch(); self.ribbon_stack.addWidget(p6)
 
         layout.addWidget(self.ribbon_stack)
         return container
 
-    def _build_feature_explorer(self) -> QFrame:
+    def _build_demo_sequence_bar(self) -> QWidget:
+        """Dedicated 1-click sequence ribbon bar for the 90-second pitch demonstration."""
+        bar = QFrame()
+        bar.setObjectName("demo-sequence-bar")
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(10, 3, 10, 3)
+        layout.setSpacing(6)
+
+        lbl = QLabel("🎬 90s DEMO PITCH SEQUENCE:")
+        lbl.setStyleSheet("color:#569cd6; font-weight:700; font-size:10px; letter-spacing:1px;")
+        layout.addWidget(lbl)
+
+        demo_steps = [
+            ("0-8s: 📍 Live Viewport", lambda: self._switch_workspace(0)),
+            ("8-20s: ⚙ Config", lambda: self._switch_workspace(1)),
+            ("20-30s: ⚡ Pipeline", lambda: self._switch_workspace(5)),
+            ("30-55s: 📹 Tracking", lambda: self._switch_workspace(0)),
+            ("55-68s: 🔮 5s Prediction", lambda: self.inspector.select("Prediction")),
+            ("68-80s: 🌀 Adaptive Search", lambda: self.inspector.select("Adaptive Search")),
+            ("80-90s: 📊 Analytics", lambda: self._switch_workspace(6)),
+            ("🔬 Research Lab", lambda: self._switch_workspace(7)),
+        ]
+
+        for text, callback in demo_steps:
+            btn = QPushButton(text)
+            btn.setProperty("class", "demo-btn")
+            btn.clicked.connect(callback)
+            layout.addWidget(btn)
+
+        layout.addStretch()
+
+        trigger_loss = QPushButton("⚠️ TRIGGER TARGET LOSS → REACQUISITION DEMO")
+        trigger_loss.setProperty("class", "demo-btn-warn")
+        trigger_loss.setToolTip("Demonstrates state transition: LOCKED -> TARGET LOST -> SEARCHING -> REACQUIRING -> LOCKED")
+        trigger_loss.clicked.connect(self._trigger_loss_demo)
+        layout.addWidget(trigger_loss)
+
+        return bar
+
+    def _build_distinction_banner(self) -> QWidget:
+        """Product pitch distinction banner showing Baseline Requirements vs Research Extensions."""
+        banner = QFrame()
+        banner.setObjectName("distinction-banner")
+        layout = QHBoxLayout(banner)
+        layout.setContentsMargins(12, 3, 12, 3)
+
+        b_label = QLabel("✓ BASELINE REQUIREMENTS (Problem Statement): Camera 640×480 @ 60 FPS  |  FOV 4°×3°  |  10px Beacon  |  Figure-8 Motion  |  Noise & Haze Disturbances  |  Acq ≤2s  |  Error ≤10px")
+        b_label.setProperty("class", "distinction-baseline")
+
+        r_label = QLabel("◆ RESEARCH EXTENSIONS (Project Innovation): Hybrid CV+AI  |  PSF Sub-pixel Fit  |  Adaptive Kalman  |  5s Prediction  |  Adaptive EAL Search  |  23 Monte Carlo Experiments")
+        r_label.setProperty("class", "distinction-research")
+
+        layout.addWidget(b_label)
+        layout.addStretch()
+        layout.addWidget(r_label)
+
+        return banner
+
+    def _build_scene_explorer(self) -> QFrame:
+        """Project / Scene Explorer Tree Panel."""
         panel = QFrame()
         panel.setProperty("class", "cad-panel")
         panel.setObjectName("scene-panel")
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        title = QLabel("CAD FEATURE EXPLORER")
+        title = QLabel("PROJECT / SCENE EXPLORER")
         title.setProperty("class", "cad-panel-header")
         layout.addWidget(title)
 
         self.scene_tree = QTreeWidget()
         self.scene_tree.setHeaderHidden(True)
 
-        # Root CAD scenario node
-        root_item = QTreeWidgetItem(self.scene_tree, ["▼ FSOC_Optical_Scenario"])
+        # Root scenario node
+        root_item = QTreeWidgetItem(self.scene_tree, ["▼ OrvessPat_Demo_Scenario"])
         root_item.setData(0, Qt.UserRole, "Scenario")
 
         # Environment sub-tree
-        env_item = QTreeWidgetItem(root_item, ["▼ Environment Model"])
+        env_item = QTreeWidgetItem(root_item, ["▼ Environment"])
         env_item.setData(0, Qt.UserRole, "Environment")
         for sub in ["Background", "Noise", "Atmosphere", "Platform Motion", "Camera Jitter"]:
             child = QTreeWidgetItem(env_item, [f"  • {sub}"])
             child.setData(0, Qt.UserRole, sub)
 
         # Camera sub-tree
-        cam_item = QTreeWidgetItem(root_item, ["▼ Camera Optics Subsystem"])
+        cam_item = QTreeWidgetItem(root_item, ["▼ Camera Subsystem"])
         cam_item.setData(0, Qt.UserRole, "Camera")
         for sub in ["Virtual Camera", "Optics", "PSF", "Actuator"]:
             child = QTreeWidgetItem(cam_item, [f"  • {sub}"])
@@ -651,18 +791,24 @@ class MainWindow(QMainWindow):
             child.setData(0, Qt.UserRole, key)
 
         # Tracking sub-tree
-        track_item = QTreeWidgetItem(root_item, ["▼ Tracking Pipeline"])
+        track_item = QTreeWidgetItem(root_item, ["▼ Tracking System"])
         track_item.setData(0, Qt.UserRole, "Tracking System")
         for sub in ["Preprocessing", "Detector", "Candidate Filter", "Localization", "ROI", "Kalman Filter", "Prediction", "Adaptive Search"]:
             child = QTreeWidgetItem(track_item, [f"  • {sub}"])
             child.setData(0, Qt.UserRole, sub)
 
         # Analysis node
-        analysis_item = QTreeWidgetItem(root_item, ["▼ Analysis & Logs"])
+        analysis_item = QTreeWidgetItem(root_item, ["▼ Analysis & Research"])
         analysis_item.setData(0, Qt.UserRole, "Analysis")
-        for sub in ["Metrics & Charts", "Debug Logs"]:
+        for sub in ["Metrics & Charts", "Research Lab (EXP 00-23)", "Monte Carlo Validation", "Debug Logs"]:
+            key_map = {
+                "Metrics & Charts": "Analysis",
+                "Research Lab (EXP 00-23)": "Research Lab",
+                "Monte Carlo Validation": "Monte Carlo",
+                "Debug Logs": "Debug Logs",
+            }
             child = QTreeWidgetItem(analysis_item, [f"  • {sub}"])
-            child.setData(0, Qt.UserRole, "Analysis" if sub.startswith("Metrics") else "Debug Logs")
+            child.setData(0, Qt.UserRole, key_map[sub])
 
         self.scene_tree.expandAll()
         self.scene_tree.itemClicked.connect(self._on_scene_item_clicked)
@@ -701,11 +847,19 @@ class MainWindow(QMainWindow):
         self.pages["Performance Analysis"] = AnalysisWorkspace()
         self.workspace_stack.addWidget(self.pages["Performance Analysis"])
 
-        # 7. Video Benchmark
+        # 7. Research Lab Experiments
+        self.pages["Research Lab"] = research()
+        self.workspace_stack.addWidget(self.pages["Research Lab"])
+
+        # 8. Monte Carlo Statistical Validation
+        self.pages["Monte Carlo"] = monte_carlo()
+        self.workspace_stack.addWidget(self.pages["Monte Carlo"])
+
+        # 9. Video Benchmark
         self.pages["Video Benchmark"] = BenchmarkWorkspace()
         self.workspace_stack.addWidget(self.pages["Video Benchmark"])
 
-        # 8. Debug Logs
+        # 10. Debug Logs
         self.pages["Debug Logs"] = DebugWorkspace()
         self.workspace_stack.addWidget(self.pages["Debug Logs"])
 
@@ -725,7 +879,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        title = QLabel("CAD PARAMETER INSPECTOR")
+        title = QLabel("PARAMETER INSPECTOR")
         title.setProperty("class", "cad-panel-header")
         layout.addWidget(title)
 
@@ -781,8 +935,8 @@ class MainWindow(QMainWindow):
         self.speed_combo.setCurrentText("1.0×")
         layout.addWidget(self.speed_combo)
 
-        # CAD Event Badges
-        events = [("ACQ", "#0e3a2f", "#4ec9b0"), ("LOCK", "#0e3a2f", "#4ec9b0"), ("MANEUVER", "#3e2a0e", "#dcdcaa")]
+        # Event Badges
+        events = [("ACQ ≤2s ✓", "#0e3a2f", "#4ec9b0"), ("ERR ≤10px ✓", "#0e3a2f", "#4ec9b0"), ("LOSS <5% ✓", "#0e3a2f", "#4ec9b0")]
         for ev, bg, fg in events:
             lbl = QLabel(ev)
             lbl.setStyleSheet(f"background:{bg}; color:{fg}; border:1px solid {fg}; padding:2px 6px; font-weight:700; font-size:9px;")
@@ -792,18 +946,19 @@ class MainWindow(QMainWindow):
 
     def _build_statusbar(self) -> QStatusBar:
         sb = QStatusBar()
-        sb.showMessage("Quadoa CAD System Nominal  |  Simulation: RUNNING  |  Camera: 640×480 @ 60 FPS  |  Lock: LOCKED  |  FPS: 60.0  |  Latency: 18.2 ms")
+        sb.showMessage("OrvessPat Sim Nominal  |  Simulation: RUNNING  |  Camera: 640×480 @ 60 FPS  |  Lock: LOCKED  |  FPS: 60.0  |  Latency: 18.2 ms")
         return sb
 
     def _on_ribbon_tab_changed(self, index: int):
         self.ribbon_stack.setCurrentIndex(index)
         tab_to_workspace = {
-            0: 0,  # Home / Live -> Live Tracking
-            1: 2,  # Optical System -> Camera Config
-            2: 3,  # Target & Trajectory -> Target Config
-            3: 5,  # Tracking Pipeline -> Pipeline
+            0: 0,  # Home / Live -> Live Tracking Viewport
+            1: 2,  # Optical Sensor -> Camera Config
+            2: 3,  # Beacon & Target -> Target Config
+            3: 5,  # Tracking Pipeline -> Pipeline Workspace
             4: 6,  # Performance Analysis -> Analysis
-            5: 7,  # Benchmark & Logs -> Benchmark
+            5: 7,  # Research Lab & Monte Carlo -> Research Lab
+            6: 9,  # Diagnostics & Logs -> Benchmark
         }
         if index in tab_to_workspace:
             self._switch_workspace(tab_to_workspace[index])
@@ -832,7 +987,9 @@ class MainWindow(QMainWindow):
                 "Prediction": 5,
                 "Adaptive Search": 5,
                 "Analysis": 6,
-                "Debug Logs": 8,
+                "Research Lab": 7,
+                "Monte Carlo": 8,
+                "Debug Logs": 10,
             }
             if component_key in tab_map:
                 self._switch_workspace(tab_map[component_key])
@@ -841,7 +998,14 @@ class MainWindow(QMainWindow):
         self.inspector.select(component)
 
     def _on_property_changed(self, component: str, field: str, value: object):
-        self._toast(f"Property updated: {component} / {field} = {value}")
+        if component == "Motion" and field == "Primary Model":
+            self.sim.set_motion_model(str(value))
+        self._toast(f"Configuration Updated: {component} / {field} = {value}")
+
+    def _trigger_loss_demo(self):
+        self._switch_workspace(0)
+        self.sim.trigger_loss_demo()
+        self._toast("State Transition Triggered: LOCKED ➔ TARGET LOST ➔ SEARCHING ➔ REACQUIRING ➔ LOCKED")
 
     def tick(self):
         d = self.sim.tick()
@@ -854,19 +1018,19 @@ class MainWindow(QMainWindow):
                 w.metrics,
                 [
                     f"{d.fps:.1f}",
-                    f"{((d.u - d.est_u) ** 2 + (d.v - d.est_v) ** 2) ** 0.5:.2f}",
+                    f"{d.track_error:.2f}",
                     "3.14",
                     "98.4",
                     f"{d.nis:.2f}",
                     f"{d.latency:.1f}",
-                    "0.83",
-                    "0.42",
+                    f"{d.acq_time:.2f}",
+                    f"{d.reacq_time:.2f}",
                 ],
                 ["", "px", "px", "%", "", "ms", "s", "s"],
             ):
                 m.set_value(val, unit)
 
-            for p, history, value in zip(w.plots, self.history, [d.u, math.hypot(d.u - d.est_u, d.v - d.est_v), d.nis]):
+            for p, history, value in zip(w.plots, self.history, [d.u, d.track_error, d.nis]):
                 history.append(value)
                 p.update_values(history)
 
@@ -875,7 +1039,7 @@ class MainWindow(QMainWindow):
 
         # Update status bar
         self.statusBar().showMessage(
-            f"Quadoa CAD System Nominal  |  Simulation: RUNNING  |  Frame: {d.frame:05d}  |  Lock: {d.lock}  |  FPS: {d.fps:.1f}  |  Latency: {d.latency:.1f} ms"
+            f"OrvessPat Sim Nominal  |  Simulation: RUNNING  |  Frame: {d.frame:05d}  |  Lock: {d.lock}  |  FPS: {d.fps:.1f}  |  Latency: {d.latency:.1f} ms"
         )
 
         # Forward telemetry to active workspaces
@@ -886,12 +1050,12 @@ class MainWindow(QMainWindow):
     def start_simulation(self):
         self.sim.running = True
         self.timer.start()
-        self.statusBar().showMessage("Quadoa CAD System Nominal  |  Simulation: RUNNING")
+        self.statusBar().showMessage("OrvessPat Sim Nominal  |  Simulation: RUNNING")
 
     def stop_simulation(self):
         self.sim.running = False
         self.timer.stop()
-        self.statusBar().showMessage("Quadoa CAD System Nominal  |  Simulation: PAUSED")
+        self.statusBar().showMessage("OrvessPat Sim Nominal  |  Simulation: PAUSED")
 
     def reset_simulation(self):
         self.timer.stop()
@@ -904,8 +1068,8 @@ class MainWindow(QMainWindow):
         self.scene_explorer_panel.show()
         self.inspector_panel.show()
         self.timeline_panel.show()
-        self.central_splitter.setSizes([220, 1100, 280])
-        self._toast("Quadoa CAD layout reset")
+        self.central_splitter.setSizes([230, 1090, 280])
+        self._toast("OrvessPat Sim layout reset")
 
     def _toast(self, message: str):
-        self.statusBar().showMessage(f"{message}  |  Quadoa CAD System Nominal", 3500)
+        self.statusBar().showMessage(f"{message}  |  OrvessPat Sim Nominal", 3500)

@@ -5,7 +5,7 @@ from ui.main_window import MainWindow
 
 def main():
     app = QApplication(sys.argv)
-    app.setApplicationName("FSOC Virtual Camera Tracking System")
+    app.setApplicationName("OrvessPat Sim")
     app.setStyle("Fusion")
     window = MainWindow()
     window.show()
