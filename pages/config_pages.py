@@ -1,5 +1,5 @@
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QTabWidget, QLabel, QFrame, QGridLayout, QFormLayout, QPlainTextEdit, QTableWidgetItem
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QScrollArea, QTabWidget, QLabel, QFrame, QGridLayout, QFormLayout, QPlainTextEdit, QTableWidgetItem, QStackedWidget
 from ui.widgets import Section, combo, number, text, check, button, Plot, CameraView, Metric, table, StatusPill
 
 
@@ -90,6 +90,59 @@ def tracking():
     return page("Tracking Configuration","DETECTION  /  LOCALIZATION  /  ESTIMATION  /  SEARCH",tabs)
 
 
+CONFIG_MODULES = [
+    ("Scenario", "Execution & recording setup"),
+    ("Camera & Optics", "Sensor, intrinsics, actuator"),
+    ("Target & Beacon", "Signature, position, motion"),
+    ("Environment", "Noise, atmosphere, jitter"),
+    ("Tracking Pipeline", "Detection → estimation → search"),
+]
+
+
+def configuration_hub():
+    """Sidebar-driven configuration hub grouping every settings module."""
+    from PySide6.QtWidgets import QListWidget, QListWidgetItem
+
+    root = QWidget()
+    lay = QHBoxLayout(root)
+    lay.setContentsMargins(0, 0, 0, 0)
+    lay.setSpacing(0)
+
+    nav = QFrame()
+    nav.setProperty("class", "cad-panel")
+    nl = QVBoxLayout(nav)
+    nl.setContentsMargins(0, 0, 0, 0)
+    nl.setSpacing(0)
+    header = QLabel("CONFIGURATION MODULES")
+    header.setProperty("class", "cad-panel-header")
+    nl.addWidget(header)
+    nav_list = QListWidget()
+    for name, sub in CONFIG_MODULES:
+        nav_list.addItem(f"{name}\n  {sub}")
+    nav_list.setCurrentRow(0)
+    nav_list.setFixedWidth(230)
+    nl.addWidget(nav_list, 1)
+    lay.addWidget(nav)
+
+    stack = QStackedWidget()
+    stack.addWidget(scenario())
+    stack.addWidget(camera())
+    stack.addWidget(target())
+    stack.addWidget(environment())
+    stack.addWidget(tracking())
+    lay.addWidget(stack, 1)
+
+    def select_page(module: str):
+        for i, (name, _) in enumerate(CONFIG_MODULES):
+            if name == module:
+                nav_list.setCurrentRow(i)
+                return
+
+    nav_list.currentRowChanged.connect(stack.setCurrentIndex)
+    root.select_page = select_page
+    return root
+
+
 def live(sim):
     root = QWidget()
     lay = QVBoxLayout(root)
@@ -108,21 +161,28 @@ def live(sim):
     body = QHBoxLayout()
     body.setSpacing(10)
 
-    # Left: Quick Control Panel
-    left = Section("SCENARIO CONTROLS")
+    # Left: Runtime Debug / State Vector (updated every tick)
+    left = Section("RUNTIME DEBUG  /  STATE VECTOR")
     left.setFixedWidth(210)
-    for i, x in enumerate([
-        "Scenario\nFSOC Demo — Moving Beacon",
-        "Camera\n640 × 480 / 60 FPS",
-        "Target\n10 px / Figure-8",
-        "Detection\nHybrid CV + AI",
-        "Estimator\nAdaptive Kalman",
-        "Prediction\n5 seconds",
-        "Search\nAdaptive EAL",
-    ]):
-        q = QLabel(x)
+    debug_labels = {}
+    debug_items = [
+        ("STATE", "LOCKED"),
+        ("FRAME", "00000"),
+        ("MODE", "Figure-8"),
+        ("TARGET U,V", "321.4, 219.2"),
+        ("EST U,V", "319.1, 220.2"),
+        ("PRED U,V", "328.5, 215.3"),
+        ("SEARCH U,V", "321.4, 219.2"),
+        ("SIGMA U,V", "18.4 / 7.2"),
+        ("NIS", "2.17"),
+        ("FPS", "60.0"),
+        ("LATENCY", "18.2 ms"),
+    ]
+    for i, (k, v) in enumerate(debug_items):
+        q = QLabel(f"{k}  ▸  {v}")
         q.setProperty("class", "telemetry-item")
         left.body.addWidget(q, i, 0, 1, 2)
+        debug_labels[k] = q
     body.addWidget(left)
 
     # Center: Optical Viewport
@@ -182,6 +242,7 @@ def live(sim):
     root.metrics = metrics
     root.camera = center.findChild(CameraView)
     root.plots = plots
+    root.debug_labels = debug_labels
     return root
 
 

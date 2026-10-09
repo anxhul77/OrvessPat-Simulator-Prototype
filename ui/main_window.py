@@ -2,11 +2,11 @@
 
 Refactored Architecture & Product Identity:
 - System: AI-Based Virtual Camera Tracking System for Coarse Alignment of Mobile FSOC Terminals
-- Product Pitch Distinction: Baseline Requirements (Problem Statement) vs Research Extensions
-- 90-Second Pitch Demonstration Toolbar (Direct 1-click sequence for 0-90s presentation)
-- Interactive Target Loss -> Searching -> Reacquiring -> Locked State Machine Demo
+- Configuration & debugging tool layout: Live Debug Cockpit, Configuration Hub, Pipeline Inspector,
+  Analytics Dashboard, Diagnostics, Research
+- Interactive Target Loss -> Searching -> Reacquiring -> Locked State Machine
 - Restoration of Research Lab (EXP 00-23) & Monte Carlo Statistical Validation
-- Top CAD Ribbon Toolbar + 90s Demo Ribbon
+- Top CAD Ribbon Toolbar
 - Left Project / Scene Explorer Tree
 - Central CAD Viewport Canvas & Dedicated Prediction / Search Workspaces
 - Right CAD Parameter Inspector (PropertyStore grid)
@@ -46,23 +46,35 @@ from PySide6.QtWidgets import (
 )
 
 from mock.simulation import MockSimulation
+from pages.analytics import AnalyticsWorkspace
 from pages.config_pages import (
     camera,
+    configuration_hub,
     environment,
     live,
     monte_carlo,
     research,
     scenario,
     target,
+    tracking,
 )
 from pages.workspaces import (
-    AnalysisWorkspace,
     BenchmarkWorkspace,
     DebugWorkspace,
     TrackingWorkspace,
 )
 from ui.properties import Inspector, PropertyStore
 from ui.widgets import Plot
+
+# Workspace stack indexes
+WS_LIVE = 0        # Home / Live debug cockpit
+WS_CONFIG = 1      # Configuration hub (sidebar over all settings modules)
+WS_PIPELINE = 2    # Tracking pipeline inspector
+WS_ANALYTICS = 3   # Analytics dashboard
+WS_BENCHMARK = 4   # Video benchmark
+WS_DEBUG = 5       # Debug console / technical logs
+WS_RESEARCH = 6    # Research lab (EXP 00-23)
+WS_MONTE = 7       # Monte Carlo validation
 
 STYLE = """
 /* ORVESSPAT SIM WORKSTATION — VS CODE DARK COLOR PALETTE */
@@ -202,62 +214,6 @@ QToolButton.cad-ribbon-btn-primary:hover {
     background: #1177bb;
 }
 
-/* 90s Pitch Demo Ribbon Bar */
-QFrame#demo-sequence-bar {
-    background: #1a232a;
-    border-bottom: 1px solid #007acc;
-    padding: 3px 10px;
-}
-
-QPushButton.demo-btn {
-    background: #1b384d;
-    color: #569cd6;
-    border: 1px solid #007acc;
-    border-radius: 2px;
-    padding: 3px 8px;
-    font-size: 10px;
-    font-weight: 700;
-}
-
-QPushButton.demo-btn:hover {
-    background: #0e639c;
-    color: #ffffff;
-}
-
-QPushButton.demo-btn-warn {
-    background: #3e2a0e;
-    color: #dcdcaa;
-    border: 1px solid #ce9178;
-    border-radius: 2px;
-    padding: 3px 8px;
-    font-size: 10px;
-    font-weight: 700;
-}
-
-QPushButton.demo-btn-warn:hover {
-    background: #684818;
-    color: #ffffff;
-}
-
-/* Product Pitch Distinction Banner */
-QFrame#distinction-banner {
-    background: #181818;
-    border-bottom: 1px solid #3c3c3c;
-    padding: 4px 12px;
-}
-
-QLabel.distinction-baseline {
-    color: #4ec9b0;
-    font-size: 10px;
-    font-weight: 600;
-}
-
-QLabel.distinction-research {
-    color: #b58cff;
-    font-size: 10px;
-    font-weight: 600;
-}
-
 /* Panels & Dock Containers */
 QFrame.cad-panel {
     background: #252526;
@@ -274,8 +230,8 @@ QLabel.cad-panel-header {
     border-bottom: 1px solid #3c3c3c;
 }
 
-/* Project / Scene Explorer Tree */
-QTreeWidget {
+/* Project / Scene Explorer Tree + Configuration Sidebar */
+QTreeWidget, QListWidget {
     background: #252526;
     color: #cccccc;
     border: none;
@@ -283,15 +239,15 @@ QTreeWidget {
     font-size: 11px;
 }
 
-QTreeWidget::item {
+QTreeWidget::item, QListWidget::item {
     padding: 4px 2px;
 }
 
-QTreeWidget::item:hover {
+QTreeWidget::item:hover, QListWidget::item:hover {
     background: #2a2d2e;
 }
 
-QTreeWidget::item:selected {
+QTreeWidget::item:selected, QListWidget::item:selected {
     background: #04395e;
     color: #ffffff;
 }
@@ -444,26 +400,20 @@ class MainWindow(QMainWindow):
         # 1. Top Ribbon Toolbar
         root_layout.addWidget(self._build_ribbon())
 
-        # 2. 90-Second Pitch Demonstration Toolbar
-        root_layout.addWidget(self._build_demo_sequence_bar())
-
-        # 3. Product Pitch Distinction Banner (Baseline Requirements vs Research Extensions)
-        root_layout.addWidget(self._build_distinction_banner())
-
-        # 4. Main Splitter (Left Scene Explorer | Central Canvas Viewport | Right Parameter Inspector)
+        # 2. Main Splitter (Left Scene Explorer | Central Canvas Viewport | Right Parameter Inspector)
         self.central_splitter = QSplitter(Qt.Horizontal)
         self.central_splitter.setChildrenCollapsible(False)
 
-        # 4a. Left Panel: Project / Scene Explorer Tree
+        # 2a. Left Panel: Project / Scene Explorer Tree
         self.scene_explorer_panel = self._build_scene_explorer()
         self.central_splitter.addWidget(self.scene_explorer_panel)
 
-        # 4b. Center: Stacked Workspaces
+        # 2b. Center: Stacked Workspaces
         self.workspace_stack = QStackedWidget()
         self._build_workspaces()
         self.central_splitter.addWidget(self.workspace_stack)
 
-        # 4c. Right Panel: Parameter Inspector
+        # 2c. Right Panel: Parameter Inspector
         self.inspector_panel = self._build_inspector_panel()
         self.central_splitter.addWidget(self.inspector_panel)
 
@@ -474,10 +424,10 @@ class MainWindow(QMainWindow):
         self.central_splitter.setStretchFactor(2, 0)
         root_layout.addWidget(self.central_splitter, 1)
 
-        # 5. Bottom Timeline Dock
+        # 3. Bottom Timeline Dock
         root_layout.addWidget(self._build_timeline_panel())
 
-        # 6. Bottom Status Bar
+        # 4. Bottom Status Bar
         self.setStatusBar(self._build_statusbar())
 
         # History buffers for live telemetry plots
@@ -511,14 +461,14 @@ class MainWindow(QMainWindow):
 
         # View
         view_menu = menubar.addMenu("View")
-        view_menu.addAction("Live Tracking Viewport", lambda: self._switch_workspace(0))
-        view_menu.addAction("Optics Setup", lambda: self._switch_workspace(2))
-        view_menu.addAction("Target Geometry", lambda: self._switch_workspace(3))
-        view_menu.addAction("Signal Pipeline", lambda: self._switch_workspace(5))
-        view_menu.addAction("Performance Analysis", lambda: self._switch_workspace(6))
-        view_menu.addAction("Research Lab", lambda: self._switch_workspace(7))
-        view_menu.addAction("Monte Carlo Validation", lambda: self._switch_workspace(8))
-        view_menu.addAction("Debug Console", lambda: self._switch_workspace(10))
+        view_menu.addAction("Live Debug Cockpit", lambda: self._switch_workspace(WS_LIVE))
+        view_menu.addAction("Configuration", lambda: self._switch_workspace(WS_CONFIG))
+        view_menu.addAction("Tracking Pipeline", lambda: self._switch_workspace(WS_PIPELINE))
+        view_menu.addAction("Analytics Dashboard", lambda: self._switch_workspace(WS_ANALYTICS))
+        view_menu.addAction("Video Benchmark", lambda: self._switch_workspace(WS_BENCHMARK))
+        view_menu.addAction("Debug Console", lambda: self._switch_workspace(WS_DEBUG))
+        view_menu.addAction("Research Lab", lambda: self._switch_workspace(WS_RESEARCH))
+        view_menu.addAction("Monte Carlo Validation", lambda: self._switch_workspace(WS_MONTE))
         view_menu.addSeparator()
         view_menu.addAction("Toggle Scene Explorer", lambda: self.scene_explorer_panel.setVisible(not self.scene_explorer_panel.isVisible()))
         view_menu.addAction("Toggle Inspector", lambda: self.inspector_panel.setVisible(not self.inspector_panel.isVisible()))
@@ -537,26 +487,27 @@ class MainWindow(QMainWindow):
 
         # Optics
         optics_menu = menubar.addMenu("Optics")
-        optics_menu.addAction("Lens & Sensor Parameters", lambda: self._switch_workspace(2))
+        optics_menu.addAction("Lens & Sensor Parameters", lambda: self._open_configuration("Camera & Optics"))
         optics_menu.addAction("Reticle Grid Toggle", lambda: self.pages["Live Tracking"].camera.toggle_grid())
-        optics_menu.addAction("Center Canvas", lambda: self._switch_workspace(0))
+        optics_menu.addAction("Center Canvas", lambda: self._switch_workspace(WS_LIVE))
 
         # Target
         target_menu = menubar.addMenu("Target")
-        target_menu.addAction("Beacon Signature", lambda: self._switch_workspace(3))
+        target_menu.addAction("Beacon Signature", lambda: self._open_configuration("Target & Beacon"))
         target_menu.addAction("Trajectory Model", lambda: self.inspector.select("Motion"))
 
         # Pipeline
         pipeline_menu = menubar.addMenu("Pipeline")
-        pipeline_menu.addAction("Detector Stage", lambda: self._switch_workspace(5))
+        pipeline_menu.addAction("Tracking Configuration", lambda: self._open_configuration("Tracking Pipeline"))
+        pipeline_menu.addAction("Pipeline Inspector", lambda: self._switch_workspace(WS_PIPELINE))
         pipeline_menu.addAction("Localization Engine", lambda: self.inspector.select("Localization"))
         pipeline_menu.addAction("Kalman Filter", lambda: self.inspector.select("Kalman Filter"))
         pipeline_menu.addAction("Adaptive Search", lambda: self.inspector.select("Adaptive Search"))
 
         # Research
         research_menu = menubar.addMenu("Research")
-        research_menu.addAction("Research Lab Experiments", lambda: self._switch_workspace(7))
-        research_menu.addAction("Monte Carlo Validation", lambda: self._switch_workspace(8))
+        research_menu.addAction("Research Lab Experiments", lambda: self._switch_workspace(WS_RESEARCH))
+        research_menu.addAction("Monte Carlo Validation", lambda: self._switch_workspace(WS_MONTE))
 
         # Window
         window_menu = menubar.addMenu("Window")
@@ -578,13 +529,12 @@ class MainWindow(QMainWindow):
         self.ribbon_tabs = QTabBar()
         self.ribbon_tabs.setObjectName("ribbon-tabs")
         tabs = [
-            "HOME / LIVE CANVAS",
-            "OPTICAL SENSOR",
-            "BEACON & TARGET",
+            "HOME / LIVE DEBUG",
+            "CONFIGURATION",
             "TRACKING PIPELINE",
-            "PERFORMANCE ANALYSIS",
-            "RESEARCH LAB & MONTE CARLO",
-            "DIAGNOSTICS & LOGS",
+            "ANALYTICS",
+            "DIAGNOSTICS",
+            "RESEARCH",
         ]
         for t in tabs:
             self.ribbon_tabs.addTab(t)
@@ -596,17 +546,8 @@ class MainWindow(QMainWindow):
         self.ribbon_stack = QStackedWidget()
         self.ribbon_stack.setFixedHeight(54)
 
-        # Panel 0: Home / Live Controls
+        # Panel 0: Home / Live Debug Controls
         p0 = QWidget(); l0 = QHBoxLayout(p0); l0.setContentsMargins(8, 4, 8, 4); l0.setSpacing(8)
-        g_scen = QGroupBox("SCENARIO")
-        g_scen.setProperty("class", "cad-ribbon-group")
-        l_scen = QHBoxLayout(g_scen); l_scen.setContentsMargins(4, 2, 4, 2)
-        b_new = QToolButton(); b_new.setText("NEW"); b_new.setProperty("class", "cad-ribbon-btn"); b_new.clicked.connect(lambda: self._toast("New Scenario"))
-        b_open = QToolButton(); b_open.setText("OPEN"); b_open.setProperty("class", "cad-ribbon-btn"); b_open.clicked.connect(lambda: self._toast("Open Scenario"))
-        b_save = QToolButton(); b_save.setText("SAVE"); b_save.setProperty("class", "cad-ribbon-btn"); b_save.clicked.connect(lambda: self._toast("Save Scenario"))
-        l_scen.addWidget(b_new); l_scen.addWidget(b_open); l_scen.addWidget(b_save)
-        l0.addWidget(g_scen)
-
         g_sim = QGroupBox("SIMULATION EXECUTION")
         g_sim.setProperty("class", "cad-ribbon-group")
         l_sim = QHBoxLayout(g_sim); l_sim.setContentsMargins(4, 2, 4, 2)
@@ -622,34 +563,31 @@ class MainWindow(QMainWindow):
         g_view.setProperty("class", "cad-ribbon-group")
         l_view = QHBoxLayout(g_view); l_view.setContentsMargins(4, 2, 4, 2)
         b_grid = QToolButton(); b_grid.setText("RETICLE GRID"); b_grid.setProperty("class", "cad-ribbon-btn"); b_grid.clicked.connect(lambda: self.pages["Live Tracking"].camera.toggle_grid())
-        b_fit = QToolButton(); b_fit.setText("FIT CANVAS"); b_fit.setProperty("class", "cad-ribbon-btn"); b_fit.clicked.connect(lambda: self._switch_workspace(0))
+        b_fit = QToolButton(); b_fit.setText("FIT CANVAS"); b_fit.setProperty("class", "cad-ribbon-btn"); b_fit.clicked.connect(lambda: self._switch_workspace(WS_LIVE))
         l_view.addWidget(b_grid); l_view.addWidget(b_fit)
         l0.addWidget(g_view)
+
+        g_dbg = QGroupBox("DEBUG")
+        g_dbg.setProperty("class", "cad-ribbon-group")
+        l_dbg = QHBoxLayout(g_dbg); l_dbg.setContentsMargins(4, 2, 4, 2)
+        b_loss = QToolButton(); b_loss.setText("TRIGGER LOSS"); b_loss.setProperty("class", "cad-ribbon-btn"); b_loss.clicked.connect(self._trigger_loss_demo)
+        b_state = QToolButton(); b_state.setText("STATE VECTOR"); b_state.setProperty("class", "cad-ribbon-btn"); b_state.clicked.connect(lambda: self._switch_workspace(WS_LIVE))
+        l_dbg.addWidget(b_loss); l_dbg.addWidget(b_state)
+        l0.addWidget(g_dbg)
         l0.addStretch(); self.ribbon_stack.addWidget(p0)
 
-        # Panel 1: Optical System
+        # Panel 1: Configuration Hub
         p1 = QWidget(); l1 = QHBoxLayout(p1); l1.setContentsMargins(8, 4, 8, 4); l1.setSpacing(8)
-        g_opt = QGroupBox("OPTICAL PARAMETERS")
-        g_opt.setProperty("class", "cad-ribbon-group")
-        l_opt = QHBoxLayout(g_opt); l_opt.setContentsMargins(4, 2, 4, 2)
-        b_cam = QToolButton(); b_cam.setText("CAMERA SENSOR"); b_cam.setProperty("class", "cad-ribbon-btn"); b_cam.clicked.connect(lambda: self.inspector.select("Camera"))
-        b_optics = QToolButton(); b_optics.setText("OPTICS INTRINSICS"); b_optics.setProperty("class", "cad-ribbon-btn"); b_optics.clicked.connect(lambda: self.inspector.select("Optics"))
-        b_psf = QToolButton(); b_psf.setText("PSF MODEL"); b_psf.setProperty("class", "cad-ribbon-btn"); b_psf.clicked.connect(lambda: self.inspector.select("PSF"))
-        l_opt.addWidget(b_cam); l_opt.addWidget(b_optics); l_opt.addWidget(b_psf)
-        l1.addWidget(g_opt); l1.addStretch(); self.ribbon_stack.addWidget(p1)
+        g_cfg = QGroupBox("SETTINGS MODULES")
+        g_cfg.setProperty("class", "cad-ribbon-group")
+        l_cfg = QHBoxLayout(g_cfg); l_cfg.setContentsMargins(4, 2, 4, 2)
+        for label, module in [("SCENARIO", "Scenario"), ("CAMERA & OPTICS", "Camera & Optics"), ("TARGET & BEACON", "Target & Beacon"), ("ENVIRONMENT", "Environment"), ("TRACKING CONFIG", "Tracking Pipeline")]:
+            b = QToolButton(); b.setText(label); b.setProperty("class", "cad-ribbon-btn"); b.clicked.connect(lambda _, m=module: self._open_configuration(m))
+            l_cfg.addWidget(b)
+        l1.addWidget(g_cfg); l1.addStretch(); self.ribbon_stack.addWidget(p1)
 
-        # Panel 2: Target & Trajectory
+        # Panel 2: Tracking Pipeline
         p2 = QWidget(); l2 = QHBoxLayout(p2); l2.setContentsMargins(8, 4, 8, 4); l2.setSpacing(8)
-        g_tgt = QGroupBox("TARGET MODEL")
-        g_tgt.setProperty("class", "cad-ribbon-group")
-        l_tgt = QHBoxLayout(g_tgt); l_tgt.setContentsMargins(4, 2, 4, 2)
-        b_beacon = QToolButton(); b_beacon.setText("BEACON SIGNATURE"); b_beacon.setProperty("class", "cad-ribbon-btn"); b_beacon.clicked.connect(lambda: self.inspector.select("Beacon_01"))
-        b_motion = QToolButton(); b_motion.setText("MOTION MODEL"); b_motion.setProperty("class", "cad-ribbon-btn"); b_motion.clicked.connect(lambda: self.inspector.select("Motion"))
-        l_tgt.addWidget(b_beacon); l_tgt.addWidget(b_motion)
-        l2.addWidget(g_tgt); l2.addStretch(); self.ribbon_stack.addWidget(p2)
-
-        # Panel 3: Tracking Pipeline
-        p3 = QWidget(); l3 = QHBoxLayout(p3); l3.setContentsMargins(8, 4, 8, 4); l3.setSpacing(8)
         g_pipe = QGroupBox("ALGORITHM STAGES")
         g_pipe.setProperty("class", "cad-ribbon-group")
         l_pipe = QHBoxLayout(g_pipe); l_pipe.setContentsMargins(4, 2, 4, 2)
@@ -658,97 +596,39 @@ class MainWindow(QMainWindow):
         b_kf = QToolButton(); b_kf.setText("KALMAN ESTIMATOR"); b_kf.setProperty("class", "cad-ribbon-btn"); b_kf.clicked.connect(lambda: self.inspector.select("Kalman Filter"))
         b_search = QToolButton(); b_search.setText("ADAPTIVE SEARCH"); b_search.setProperty("class", "cad-ribbon-btn"); b_search.clicked.connect(lambda: self.inspector.select("Adaptive Search"))
         l_pipe.addWidget(b_det); l_pipe.addWidget(b_loc); l_pipe.addWidget(b_kf); l_pipe.addWidget(b_search)
-        l3.addWidget(g_pipe); l3.addStretch(); self.ribbon_stack.addWidget(p3)
+        l2.addWidget(g_pipe); l2.addStretch(); self.ribbon_stack.addWidget(p2)
 
-        # Panel 4: Analysis
-        p4 = QWidget(); l4 = QHBoxLayout(p4); l4.setContentsMargins(8, 4, 8, 4); l4.setSpacing(8)
-        g_ana = QGroupBox("ANALYTICS")
+        # Panel 3: Analytics
+        p3 = QWidget(); l3 = QHBoxLayout(p3); l3.setContentsMargins(8, 4, 8, 4); l3.setSpacing(8)
+        g_ana = QGroupBox("SESSION ANALYTICS")
         g_ana.setProperty("class", "cad-ribbon-group")
         l_ana = QHBoxLayout(g_ana); l_ana.setContentsMargins(4, 2, 4, 2)
-        b_dash = QToolButton(); b_dash.setText("PERFORMANCE DASHBOARD"); b_dash.setProperty("class", "cad-ribbon-btn"); b_dash.clicked.connect(lambda: self._switch_workspace(6))
+        b_dash = QToolButton(); b_dash.setText("PERFORMANCE DASHBOARD"); b_dash.setProperty("class", "cad-ribbon-btn"); b_dash.clicked.connect(lambda: self._switch_workspace(WS_ANALYTICS))
         l_ana.addWidget(b_dash)
-        l4.addWidget(g_ana); l4.addStretch(); self.ribbon_stack.addWidget(p4)
+        l3.addWidget(g_ana); l3.addStretch(); self.ribbon_stack.addWidget(p3)
 
-        # Panel 5: Research Lab & Monte Carlo
+        # Panel 4: Diagnostics
+        p4 = QWidget(); l4 = QHBoxLayout(p4); l4.setContentsMargins(8, 4, 8, 4); l4.setSpacing(8)
+        g_bm = QGroupBox("DIAGNOSTIC TOOLS")
+        g_bm.setProperty("class", "cad-ribbon-group")
+        l_bm = QHBoxLayout(g_bm); l_bm.setContentsMargins(4, 2, 4, 2)
+        b_vid = QToolButton(); b_vid.setText("VIDEO REPLAY"); b_vid.setProperty("class", "cad-ribbon-btn"); b_vid.clicked.connect(lambda: self._switch_workspace(WS_BENCHMARK))
+        b_log = QToolButton(); b_log.setText("DEBUG CONSOLE"); b_log.setProperty("class", "cad-ribbon-btn"); b_log.clicked.connect(lambda: self._switch_workspace(WS_DEBUG))
+        l_bm.addWidget(b_vid); l_bm.addWidget(b_log)
+        l4.addWidget(g_bm); l4.addStretch(); self.ribbon_stack.addWidget(p4)
+
+        # Panel 5: Research
         p5 = QWidget(); l5 = QHBoxLayout(p5); l5.setContentsMargins(8, 4, 8, 4); l5.setSpacing(8)
         g_res = QGroupBox("RESEARCH EXPERIMENTS")
         g_res.setProperty("class", "cad-ribbon-group")
         l_res = QHBoxLayout(g_res); l_res.setContentsMargins(4, 2, 4, 2)
-        b_lab = QToolButton(); b_lab.setText("RESEARCH LAB (EXP 00-23)"); b_lab.setProperty("class", "cad-ribbon-btn"); b_lab.clicked.connect(lambda: self._switch_workspace(7))
-        b_mc = QToolButton(); b_mc.setText("MONTE CARLO VALIDATION"); b_mc.setProperty("class", "cad-ribbon-btn"); b_mc.clicked.connect(lambda: self._switch_workspace(8))
+        b_lab = QToolButton(); b_lab.setText("RESEARCH LAB (EXP 00-23)"); b_lab.setProperty("class", "cad-ribbon-btn"); b_lab.clicked.connect(lambda: self._switch_workspace(WS_RESEARCH))
+        b_mc = QToolButton(); b_mc.setText("MONTE CARLO VALIDATION"); b_mc.setProperty("class", "cad-ribbon-btn"); b_mc.clicked.connect(lambda: self._switch_workspace(WS_MONTE))
         l_res.addWidget(b_lab); l_res.addWidget(b_mc)
         l5.addWidget(g_res); l5.addStretch(); self.ribbon_stack.addWidget(p5)
 
-        # Panel 6: Diagnostics & Logs
-        p6 = QWidget(); l6 = QHBoxLayout(p6); l6.setContentsMargins(8, 4, 8, 4); l6.setSpacing(8)
-        g_bm = QGroupBox("DIAGNOSTICS")
-        g_bm.setProperty("class", "cad-ribbon-group")
-        l_bm = QHBoxLayout(g_bm); l_bm.setContentsMargins(4, 2, 4, 2)
-        b_vid = QToolButton(); b_vid.setText("VIDEO REPLAY"); b_vid.setProperty("class", "cad-ribbon-btn"); b_vid.clicked.connect(lambda: self._switch_workspace(9))
-        b_log = QToolButton(); b_log.setText("DEBUG CONSOLE"); b_log.setProperty("class", "cad-ribbon-btn"); b_log.clicked.connect(lambda: self._switch_workspace(10))
-        l_bm.addWidget(b_vid); l_bm.addWidget(b_log)
-        l6.addWidget(g_bm); l6.addStretch(); self.ribbon_stack.addWidget(p6)
-
         layout.addWidget(self.ribbon_stack)
         return container
-
-    def _build_demo_sequence_bar(self) -> QWidget:
-        """Dedicated 1-click sequence ribbon bar for the 90-second pitch demonstration."""
-        bar = QFrame()
-        bar.setObjectName("demo-sequence-bar")
-        layout = QHBoxLayout(bar)
-        layout.setContentsMargins(10, 3, 10, 3)
-        layout.setSpacing(6)
-
-        lbl = QLabel("🎬 90s DEMO PITCH SEQUENCE:")
-        lbl.setStyleSheet("color:#569cd6; font-weight:700; font-size:10px; letter-spacing:1px;")
-        layout.addWidget(lbl)
-
-        demo_steps = [
-            ("0-8s: 📍 Live Viewport", lambda: self._switch_workspace(0)),
-            ("8-20s: ⚙ Config", lambda: self._switch_workspace(1)),
-            ("20-30s: ⚡ Pipeline", lambda: self._switch_workspace(5)),
-            ("30-55s: 📹 Tracking", lambda: self._switch_workspace(0)),
-            ("55-68s: 🔮 5s Prediction", lambda: self.inspector.select("Prediction")),
-            ("68-80s: 🌀 Adaptive Search", lambda: self.inspector.select("Adaptive Search")),
-            ("80-90s: 📊 Analytics", lambda: self._switch_workspace(6)),
-            ("🔬 Research Lab", lambda: self._switch_workspace(7)),
-        ]
-
-        for text, callback in demo_steps:
-            btn = QPushButton(text)
-            btn.setProperty("class", "demo-btn")
-            btn.clicked.connect(callback)
-            layout.addWidget(btn)
-
-        layout.addStretch()
-
-        trigger_loss = QPushButton("⚠️ TRIGGER TARGET LOSS → REACQUISITION DEMO")
-        trigger_loss.setProperty("class", "demo-btn-warn")
-        trigger_loss.setToolTip("Demonstrates state transition: LOCKED -> TARGET LOST -> SEARCHING -> REACQUIRING -> LOCKED")
-        trigger_loss.clicked.connect(self._trigger_loss_demo)
-        layout.addWidget(trigger_loss)
-
-        return bar
-
-    def _build_distinction_banner(self) -> QWidget:
-        """Product pitch distinction banner showing Baseline Requirements vs Research Extensions."""
-        banner = QFrame()
-        banner.setObjectName("distinction-banner")
-        layout = QHBoxLayout(banner)
-        layout.setContentsMargins(12, 3, 12, 3)
-
-        b_label = QLabel("✓ BASELINE REQUIREMENTS (Problem Statement): Camera 640×480 @ 60 FPS  |  FOV 4°×3°  |  10px Beacon  |  Figure-8 Motion  |  Noise & Haze Disturbances  |  Acq ≤2s  |  Error ≤10px")
-        b_label.setProperty("class", "distinction-baseline")
-
-        r_label = QLabel("◆ RESEARCH EXTENSIONS (Project Innovation): Hybrid CV+AI  |  PSF Sub-pixel Fit  |  Adaptive Kalman  |  5s Prediction  |  Adaptive EAL Search  |  23 Monte Carlo Experiments")
-        r_label.setProperty("class", "distinction-research")
-
-        layout.addWidget(b_label)
-        layout.addStretch()
-        layout.addWidget(r_label)
-
-        return banner
 
     def _build_scene_explorer(self) -> QFrame:
         """Project / Scene Explorer Tree Panel."""
@@ -800,9 +680,9 @@ class MainWindow(QMainWindow):
         # Analysis node
         analysis_item = QTreeWidgetItem(root_item, ["▼ Analysis & Research"])
         analysis_item.setData(0, Qt.UserRole, "Analysis")
-        for sub in ["Metrics & Charts", "Research Lab (EXP 00-23)", "Monte Carlo Validation", "Debug Logs"]:
+        for sub in ["Analytics Dashboard", "Research Lab (EXP 00-23)", "Monte Carlo Validation", "Debug Logs"]:
             key_map = {
-                "Metrics & Charts": "Analysis",
+                "Analytics Dashboard": "Analytics Dashboard",
                 "Research Lab (EXP 00-23)": "Research Lab",
                 "Monte Carlo Validation": "Monte Carlo",
                 "Debug Logs": "Debug Logs",
@@ -819,58 +699,51 @@ class MainWindow(QMainWindow):
     def _build_workspaces(self):
         self.pages = {}
 
-        # 0. Live Tracking Viewport Canvas
+        # 0. Home: Live Debug Cockpit (viewport + state vector + live plots)
         self.pages["Live Tracking"] = live(self.sim)
         self.workspace_stack.addWidget(self.pages["Live Tracking"])
 
-        # 1. Scenario Config
-        self.pages["Scenario"] = scenario()
-        self.workspace_stack.addWidget(self.pages["Scenario"])
+        # 1. Configuration Hub (sidebar over all settings modules)
+        self.pages["Configuration"] = configuration_hub()
+        self.workspace_stack.addWidget(self.pages["Configuration"])
 
-        # 2. Camera & Optics Config
-        self.pages["Camera"] = camera()
-        self.workspace_stack.addWidget(self.pages["Camera"])
-
-        # 3. Target & Motion Config
-        self.pages["Target"] = target()
-        self.workspace_stack.addWidget(self.pages["Target"])
-
-        # 4. Environment Config
-        self.pages["Environment"] = environment()
-        self.workspace_stack.addWidget(self.pages["Environment"])
-
-        # 5. Tracking Pipeline Workspace
+        # 2. Tracking Pipeline Inspector
         self.pages["Tracking Pipeline"] = TrackingWorkspace()
         self.workspace_stack.addWidget(self.pages["Tracking Pipeline"])
 
-        # 6. Performance Analysis
-        self.pages["Performance Analysis"] = AnalysisWorkspace()
-        self.workspace_stack.addWidget(self.pages["Performance Analysis"])
+        # 3. Analytics Dashboard (session accumulation + performance analysis)
+        self.pages["Analytics"] = AnalyticsWorkspace()
+        self.workspace_stack.addWidget(self.pages["Analytics"])
 
-        # 7. Research Lab Experiments
-        self.pages["Research Lab"] = research()
-        self.workspace_stack.addWidget(self.pages["Research Lab"])
-
-        # 8. Monte Carlo Statistical Validation
-        self.pages["Monte Carlo"] = monte_carlo()
-        self.workspace_stack.addWidget(self.pages["Monte Carlo"])
-
-        # 9. Video Benchmark
+        # 4. Video Benchmark
         self.pages["Video Benchmark"] = BenchmarkWorkspace()
         self.workspace_stack.addWidget(self.pages["Video Benchmark"])
 
-        # 10. Debug Logs
+        # 5. Debug Console / Technical Logs
         self.pages["Debug Logs"] = DebugWorkspace()
         self.workspace_stack.addWidget(self.pages["Debug Logs"])
 
-        # Wire Scenario execution buttons
-        for b in self.pages["Scenario"].findChildren(QPushButton):
+        # 6. Research Lab Experiments
+        self.pages["Research Lab"] = research()
+        self.workspace_stack.addWidget(self.pages["Research Lab"])
+
+        # 7. Monte Carlo Statistical Validation
+        self.pages["Monte Carlo"] = monte_carlo()
+        self.workspace_stack.addWidget(self.pages["Monte Carlo"])
+
+        # Wire Scenario execution buttons inside the Configuration hub
+        for b in self.pages["Configuration"].findChildren(QPushButton):
             if b.text() == "START SIMULATION":
                 b.clicked.connect(self.start_simulation)
             elif b.text() == "STOP":
                 b.clicked.connect(self.stop_simulation)
             elif b.text() == "RESET":
                 b.clicked.connect(self.reset_simulation)
+
+    def _open_configuration(self, module: str):
+        """Switch to the Configuration hub and open the given settings module."""
+        self._switch_workspace(WS_CONFIG)
+        self.pages["Configuration"].select_page(module)
 
     def _build_inspector_panel(self) -> QFrame:
         panel = QFrame()
@@ -952,13 +825,12 @@ class MainWindow(QMainWindow):
     def _on_ribbon_tab_changed(self, index: int):
         self.ribbon_stack.setCurrentIndex(index)
         tab_to_workspace = {
-            0: 0,  # Home / Live -> Live Tracking Viewport
-            1: 2,  # Optical Sensor -> Camera Config
-            2: 3,  # Beacon & Target -> Target Config
-            3: 5,  # Tracking Pipeline -> Pipeline Workspace
-            4: 6,  # Performance Analysis -> Analysis
-            5: 7,  # Research Lab & Monte Carlo -> Research Lab
-            6: 9,  # Diagnostics & Logs -> Benchmark
+            0: WS_LIVE,        # Home / Live Debug
+            1: WS_CONFIG,      # Configuration
+            2: WS_PIPELINE,    # Tracking Pipeline
+            3: WS_ANALYTICS,   # Analytics
+            4: WS_BENCHMARK,   # Diagnostics (video replay default)
+            5: WS_RESEARCH,    # Research
         }
         if index in tab_to_workspace:
             self._switch_workspace(tab_to_workspace[index])
@@ -971,25 +843,32 @@ class MainWindow(QMainWindow):
     def _on_scene_item_clicked(self, item: QTreeWidgetItem, column: int):
         component_key = item.data(0, Qt.UserRole)
         if component_key:
+            if component_key in ("Scenario", "Environment", "Camera", "Optics", "Targets", "Beacon_01", "Motion"):
+                module_map = {
+                    "Scenario": "Scenario",
+                    "Environment": "Environment",
+                    "Camera": "Camera & Optics",
+                    "Optics": "Camera & Optics",
+                    "Targets": "Target & Beacon",
+                    "Beacon_01": "Target & Beacon",
+                    "Motion": "Target & Beacon",
+                }
+                self.inspector.select(component_key)
+                self._open_configuration(module_map[component_key])
+                return
             self.inspector.select(component_key)
             tab_map = {
-                "Scenario": 1,
-                "Environment": 4,
-                "Camera": 2,
-                "Optics": 2,
-                "Targets": 3,
-                "Beacon_01": 3,
-                "Motion": 3,
-                "Tracking System": 5,
-                "Detector": 5,
-                "Localization": 5,
-                "Kalman Filter": 5,
-                "Prediction": 5,
-                "Adaptive Search": 5,
-                "Analysis": 6,
-                "Research Lab": 7,
-                "Monte Carlo": 8,
-                "Debug Logs": 10,
+                "Tracking System": WS_PIPELINE,
+                "Detector": WS_PIPELINE,
+                "Localization": WS_PIPELINE,
+                "Kalman Filter": WS_PIPELINE,
+                "Prediction": WS_PIPELINE,
+                "Adaptive Search": WS_PIPELINE,
+                "Analysis": WS_ANALYTICS,
+                "Analytics Dashboard": WS_ANALYTICS,
+                "Research Lab": WS_RESEARCH,
+                "Monte Carlo": WS_MONTE,
+                "Debug Logs": WS_DEBUG,
             }
             if component_key in tab_map:
                 self._switch_workspace(tab_map[component_key])
@@ -1030,9 +909,30 @@ class MainWindow(QMainWindow):
             ):
                 m.set_value(val, unit)
 
+            debug_map = {
+                "STATE": d.lock,
+                "FRAME": f"{d.frame:05d}",
+                "MODE": d.motion_model,
+                "TARGET U,V": f"{d.u:.1f}, {d.v:.1f}",
+                "EST U,V": f"{d.est_u:.1f}, {d.est_v:.1f}",
+                "PRED U,V": f"{d.pred_u:.1f}, {d.pred_v:.1f}",
+                "SEARCH U,V": f"{d.search_u:.1f}, {d.search_v:.1f}",
+                "SIGMA U,V": f"{d.sigma_u:.1f} / {d.sigma_v:.1f}",
+                "NIS": f"{d.nis:.2f}",
+                "FPS": f"{d.fps:.1f}",
+                "LATENCY": f"{d.latency:.1f} ms",
+            }
+            for key, label in w.debug_labels.items():
+                label.setText(f"{key}  ▸  {debug_map[key]}")
+
             for p, history, value in zip(w.plots, self.history, [d.u, d.track_error, d.nis]):
                 history.append(value)
                 p.update_values(history)
+
+        # Analytics dashboard accumulates session statistics on every tick
+        analytics = self.pages.get("Analytics")
+        if analytics:
+            analytics.update_telemetry(d)
 
         # Update timeline slider
         self.timeline_slider.setValue(d.frame % 1200)
@@ -1042,9 +942,9 @@ class MainWindow(QMainWindow):
             f"OrvessPat Sim Nominal  |  Simulation: RUNNING  |  Frame: {d.frame:05d}  |  Lock: {d.lock}  |  FPS: {d.fps:.1f}  |  Latency: {d.latency:.1f} ms"
         )
 
-        # Forward telemetry to active workspaces
+        # Forward telemetry to the active workspace (Analytics already updated above)
         current_w = self.workspace_stack.currentWidget()
-        if hasattr(current_w, "update_telemetry"):
+        if hasattr(current_w, "update_telemetry") and current_w is not self.pages.get("Analytics"):
             current_w.update_telemetry(d)
 
     def start_simulation(self):
